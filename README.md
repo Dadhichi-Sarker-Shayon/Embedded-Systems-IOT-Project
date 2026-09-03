@@ -312,7 +312,7 @@ The following is the complete, working ESP32 receiver firmware:
       }
     }
 
-[ Figure 5.3 - Receiver Software Flowchart ]
+![ESP32 Receiver Software Flowchart](diagrams/esp32_receiver_flowchart.png)
 
 
 ## Flutter Mobile Application
@@ -389,10 +389,13 @@ The Flutter application connects to the receiver WebSocket endpoint over the rec
       Vibration.vibrate(pattern: [0, 500, 200, 500], repeat: 0);
     }
 
-[ Figure 5.4 - Flutter Dashboard Screen ]
-[ Figure 5.5 - Live Monitoring Screen ]
-[ Figure 5.6 - Emergency Alert Screen ]
-[ Figure 5.7 - Flutter Application Flowchart ]
+![Flutter Live Camera Monitoring Dashboard](diagrams/flutter_live_dashboard.png)
+
+![Flutter Emergency Alarm Screen](diagrams/flutter_emergency_alarm.png)
+
+![Flutter Event History](diagrams/flutter_event_history.png)
+
+![Flutter Application Flowchart](diagrams/flutter_app_flowchart.png)
 
 
 ## Complete Receiver and Flutter Workflow
@@ -407,10 +410,13 @@ The receiver subsystem was evaluated in a controlled pool environment to charact
 
 The Goertzel detector was then tested against this filtered signal, and the computed magnitude at the target bin was observed to rise sharply above the calibrated threshold whenever the transmitter tone was present, and to remain below threshold under quiet and typical ambient pool noise conditions. The consecutive-detection verification window was tuned experimentally to suppress transient false triggers while keeping detection latency within an acceptable range for a rescue-alert application.
 
-[ Figure 5.9 - Prototype Hydrophone Receiver Photograph ]
-[ Figure 5.10 - Pool Testing Setup ]
-[ Figure 5.11 - Serial Monitor Output During Detection ]
-[ Figure 5.12 - Flutter Application Screenshots During Live Test ]
+![Prototype Hydrophone Receiver with Piezo Sensor](diagrams/receiver_with_hydrophone.jpg)
+
+![Receiver Circuit Breadboard Close-up](diagrams/receiver_breadboard_closeup.jpg)
+
+![Flutter Settings - Video Quality and ESP32 Connection](diagrams/flutter_settings_top.png)
+
+![Flutter Settings - Buffer Configuration and Clear Buffer](diagrams/flutter_settings_bottom.png)
 
 ## Advantages
 
