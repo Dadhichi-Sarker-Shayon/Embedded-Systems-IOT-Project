@@ -64,7 +64,7 @@ The primary objectives of this project are:
 
 The complete system operates across three cooperating units:
 
-``
+```
 [Wearable Transmitter] ---(1500 Hz acoustic tone)---> [Hydrophone Receiver (ESP32)]
                                                               |
                                                      (WebSocket JSON)
