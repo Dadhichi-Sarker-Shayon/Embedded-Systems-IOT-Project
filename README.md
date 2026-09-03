@@ -142,6 +142,8 @@ A separate resistive divider (10 kOhm + 10 kOhm) referenced between the 3.3 V ra
 
 ## Circuit Design and Connections
 
+![Hydrophone Module Circuit Diagram](diagrams/hydrophone_circuit_diagram.png)
+
 ### Complete Signal Chain
 
 ```
