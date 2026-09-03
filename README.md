@@ -25,7 +25,7 @@
     - [Advantages](#transmitter-advantages)
     - [Limitations](#transmitter-limitations)
     - [Conclusion](#transmitter-conclusion)
-    - [Authors](#transmitter-authors)
+    - [Author](#transmitter-authors)
   - [Hydrophone Receiver](#hydrophone-receiver)
     - [Overview](#overview)
     - [Objectives](#objectives)
@@ -1573,12 +1573,6 @@ Taken together, the transmitter subsystem validates the acoustic-first design ap
 ## Transmitter Authors
 
 **Sumaiya Afrin Eva**
-
-**Anwesha Das**
-
-**Naurina Haque**
-
-**Nashita Binte Hamid**
 
 [![Final Transmitter Project Build](diagrams/final_transmitter_project.jpeg)](diagrams/final_transmitter_project.jpeg)
 
