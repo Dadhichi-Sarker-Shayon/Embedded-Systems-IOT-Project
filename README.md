@@ -25,7 +25,7 @@
     - [Advantages](#transmitter-advantages)
     - [Limitations](#transmitter-limitations)
     - [Conclusion](#transmitter-conclusion)
-    - [Author](#transmitter-authors)
+    - [Author](#transmitter-author)
   - [Hydrophone Receiver](#hydrophone-receiver)
     - [Overview](#overview)
     - [Objectives](#objectives)
