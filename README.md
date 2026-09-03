@@ -779,11 +779,15 @@ Experimental testing confirmed that the system detects the 1500 Hz transmitter t
 
 ---
 
+---
+
 ## Wearable Acoustic Transmitter
 
 The wearable transmitter is the swimmer-side unit of the drowning detection system. It continuously monitors three physiological and environmental indicators — **heart rate**, **water submersion**, and **body motion** — and, upon confirming an emergency condition, drives a submerged piezo transducer to emit a **1500 Hz acoustic distress tone** that the poolside hydrophone receiver can detect.
 
 [![Transmitter Circuit Diagram](diagrams/circuit_diagram_of_transmitter.jpeg)](diagrams/circuit_diagram_of_transmitter.jpeg)
+
+[![Final Transmitter Project Build](diagrams/final_transmitter_project.jpeg)](diagrams/final_transmitter_project.jpeg)
 
 ---
 
@@ -836,7 +840,7 @@ The 18650 cell charges safely through the TP4056 module (USB 5V input). The cell
 
 ## Transmitter Circuit Design and Connections
 
-![Transmitter Circuit Diagram](diagrams/circuit_diagram_of_transmitter.jpeg)
+[![Transmitter Circuit Diagram](diagrams/circuit_diagram_of_transmitter.jpeg)](diagrams/circuit_diagram_of_transmitter.jpeg)
 
 ### Complete Signal Chain
 
@@ -959,7 +963,7 @@ The transmitter polls all three sensors in a tight main loop (10 ms delay):
 - **Water sensor** is read each iteration; any reading above 50 starts (or continues) a submersion timer.
 - **MPU-6050** accelerometer axes are read every 100 ms; large axis deltas (> 5000 LSB) increment a spike counter that resets every 10 seconds.
 
-![Heart Rate Monitoring Flowchart](diagrams/heart_rate_monitoring_flowchart.png)
+[![Heart Rate Monitoring Flowchart](diagrams/heart_rate_monitoring_flowchart.png)](diagrams/heart_rate_monitoring_flowchart.png)
 
 **Step 2: Multi-Factor Emergency Evaluation**
 Each main loop iteration evaluates four independent emergency conditions in priority order:
@@ -971,7 +975,7 @@ Each main loop iteration evaluates four independent emergency conditions in prio
 | 3 | **Tachycardia** | Average BPM > 130 |
 | 4 | **Absolute Submersion** | Continuously submerged for > 10 seconds |
 
-![Emergency Detection Flowchart](diagrams/emergency_detection_flowchart.png)
+[![Emergency Detection Flowchart](diagrams/emergency_detection_flowchart.png)](diagrams/emergency_detection_flowchart.png)
 
 **Step 3: Acoustic Distress Tone Emission**
 When any emergency condition is met, `sendEmergencyPing()` is called. This function enters an infinite loop that:
@@ -983,12 +987,12 @@ When any emergency condition is met, `sendEmergencyPing()` is called. This funct
 
 This pulsed pattern (150 ms on / 100 ms off) gives the receiver's Goertzel confirmation window enough consistent tone blocks to achieve the required hit ratio while also being distinguishable from continuous ambient noise.
 
-![Acoustic Signal Generation Flowchart](diagrams/acoustic_signal_generation_flowchart.png)
+[![Acoustic Signal Generation Flowchart](diagrams/acoustic_signal_generation_flowchart.png)](diagrams/acoustic_signal_generation_flowchart.png)
 
 **Step 4: Hydrophone Receiver Detection**
 The 1500 Hz acoustic tone propagates through the water to the poolside hydrophone. The receiver station's Goertzel algorithm detects the tone, verifies it against the confirmation window, and triggers the local alarm and Flutter mobile app alert — completing the end-to-end rescue notification chain.
 
-![Transmitter–Receiver Communication Flowchart](diagrams/transmitter_receiver_communication_flowchart.png)
+[![Transmitter–Receiver Communication Flowchart](diagrams/transmitter_receiver_communication_flowchart.png)](diagrams/transmitter_receiver_communication_flowchart.png)
 
 ### Detection Logic Flow
 
@@ -1027,11 +1031,11 @@ The 1500 Hz acoustic tone propagates through the water to the poolside hydrophon
 
 ### Sensor Sub-System Flowcharts
 
-![Water / Submersion Monitoring Flowchart](diagrams/water_or_submerssion_monitoring_flowchart.png)
+[![Water / Submersion Monitoring Flowchart](diagrams/water_or_submerssion_monitoring_flowchart.png)](diagrams/water_or_submerssion_monitoring_flowchart.png)
 
-![Motion Detection Flowchart](diagrams/motion_detection_flowchart.png)
+[![Motion Detection Flowchart](diagrams/motion_detection_flowchart.png)](diagrams/motion_detection_flowchart.png)
 
-![Motion Detection Summary Flowchart](diagrams/motion_detection_summary_flowchart.png)
+[![Motion Detection Summary Flowchart](diagrams/motion_detection_summary_flowchart.png)](diagrams/motion_detection_summary_flowchart.png)
 
 ---
 
@@ -1169,7 +1173,7 @@ void sendEmergencyPing() {
 
 The `tone()` function generates a 50% duty-cycle square wave at 1500 Hz on GPIO18. The MOSFET switches the piezo transducer at this frequency, converting the electrical signal into an underwater acoustic pressure wave at exactly the frequency the receiver's Goertzel detector is tuned to.
 
-![Acoustic Signal Generation Flowchart](diagrams/acoustic_signal_generation_flowchart.png)
+[![Acoustic Signal Generation Flowchart](diagrams/acoustic_signal_generation_flowchart.png)](diagrams/acoustic_signal_generation_flowchart.png)
 
 ### Complete Transmitter Firmware Source
 
@@ -1349,6 +1353,8 @@ void sendEmergencyPing() {
 6. **Flash the firmware** using Arduino IDE or PlatformIO.
 7. **Waterproof the piezo transducer** with silicone or epoxy, leaving only the active face exposed, and position it on the swimmer's body or on a wrist band pointed toward the pool floor.
 
+[![Final Transmitter Project Build](diagrams/final_transmitter_project.jpeg)](diagrams/final_transmitter_project.jpeg)
+
 ### Firmware Configuration
 
 Before flashing, adjust these constants in the firmware as needed:
@@ -1390,4 +1396,42 @@ Once the emergency tone is emitted and the hydrophone receiver detects it, the r
 [![Transmitter–Receiver Communication Flowchart](diagrams/transmitter_receiver_communication_flowchart.png)](diagrams/transmitter_receiver_communication_flowchart.png)
 
 ---
+
+## Advantages
+
+- The acoustic distress tone is generated by a **wearable, battery-powered unit** worn by the swimmer, enabling **fully autonomous, infrastructure-free** drowning detection without any dependency on poolside cameras, pressure mats, or lifeguard observation.
+- The **multi-factor emergency logic** (heart rate + submersion duration + motion) substantially reduces false alarms compared to single-sensor approaches; a routine dive or a brief stumble alone cannot trigger the alarm.
+- Using the ESP32 `tone()` function to drive a MOSFET at exactly 1500 Hz is a **computationally trivial and power-efficient** approach — no DAC, no audio codec, and no continuous high-current draw until an emergency is actually detected.
+- The **18650 Li-Ion cell with TP4056 charging** provides a rechargeable, USB-rechargeable power solution that can sustain multi-hour monitoring sessions on a single charge and is easily replaced when depleted.
+- The boost converter ensures a **stable 5 V drive rail** for the piezo regardless of battery state-of-charge, keeping the transmitted acoustic power consistent throughout a monitoring session.
+- The **four independent emergency conditions** allow the system to respond to diverse drowning scenarios — sudden cardiac events (bradycardia / tachycardia), passive face-down submersion (absolute submersion timer), and conscious struggle (3-factor combined condition) — without requiring a single condition to cover all cases.
+- **Runtime-configurable thresholds** (PULSE_THRESHOLD, HEART_LOW, HEART_HIGH, MOTION_THRESHOLD) allow the unit to be calibrated per swimmer without reflashing firmware.
+
+---
+
+## Limitations
+
+- The pulse sensor is susceptible to **motion artifacts** during vigorous swimming; an ADC peak threshold alone cannot reliably reject false beats caused by arm movement, potentially producing erroneous BPM readings.
+- Once `sendEmergencyPing()` is entered, the device is **locked in an infinite tone loop** and cannot be reset remotely — the swimmer or a rescuer must physically power-cycle the unit, which may not be possible in an active rescue scenario.
+- The wearable enclosure shown is a **prototype-grade waterproof container**; a production unit would require a purpose-designed IP68 housing with sealed cable glands to guarantee long-term waterproofing under hydrostatic pressure.
+- A single fixed submersion timer (`MAX_ABSOLUTE_SUBMERGED = 10 s`) may be **too short for competitive swimmers** who routinely perform extended underwater laps, requiring per-user threshold customisation to avoid nuisance alarms.
+- The 3-factor condition requires **all three indicators simultaneously** to trigger, which could delay detection if a swimmer loses consciousness quietly without exhibiting panic motion, relying instead on the absolute submersion fallback condition.
+- The system operates with **no acknowledgement from the receiver** — the transmitter cannot confirm whether its tone has been received and an alarm raised, providing no feedback loop to the swimmer or an attending caregiver that help is on the way.
+
+---
+
+## Authors
+
+**Sumaiya Afrin Eva**
+
+**Anwesha Das**
+
+**Naurina Haque**
+
+**Nashita Binte Hamid**
+
+[![Final Transmitter Project Build](diagrams/final_transmitter_project.jpeg)](diagrams/final_transmitter_project.jpeg)
+
+---
+
 
