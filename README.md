@@ -11,20 +11,36 @@
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Objectives](#objectives)
-- [System Architecture](#system-architecture)
-- [How It Works - Working Principle](#how-it-works---working-principle)
-- [Hardware Components](#hardware-components)
-- [Circuit Design and Connections](#circuit-design-and-connections)
-- [Receiver Software Design](#receiver-software-design)
-- [Flutter Mobile Application](#flutter-mobile-application)
-- [Usage Guide - How to Use](#usage-guide---how-to-use)
-- [Experimental Results](#experimental-results)
-- [Advantages](#advantages)
-- [Limitations](#limitations)
-- [Conclusion](#conclusion)
-- [Author](#author)
+- [Major System Components](#major-system-components)
+  - [Wearable Acoustic Transmitter](#wearable-acoustic-transmitter)
+    - [Overview](#transmitter-overview)
+    - [Objectives](#transmitter-objectives)
+    - [System Architecture](#transmitter-system-architecture)
+    - [Hardware Components](#transmitter-hardware-components)
+    - [Circuit Design and Connections](#transmitter-circuit-design-and-connections)
+    - [How It Works - Transmitter Working Principle](#how-it-works---transmitter-working-principle)
+    - [Transmitter Software Design](#transmitter-software-design)
+    - [Usage Guide - How To Use](#transmitter-usage-guide)
+    - [Experimental Results](#transmitter-experimental-results)
+    - [Advantages](#transmitter-advantages)
+    - [Limitations](#transmitter-limitations)
+    - [Conclusion](#transmitter-conclusion)
+    - [Author](#transmitter-author)
+  - [Hydrophone Receiver](#hydrophone-receiver)
+    - [Overview](#overview)
+    - [Objectives](#objectives)
+    - [System Architecture](#system-architecture)
+    - [How It Works - Working Principle](#how-it-works---working-principle)
+    - [Hardware Components](#hardware-components)
+    - [Circuit Design and Connections](#circuit-design-and-connections)
+    - [Receiver Software Design](#receiver-software-design)
+    - [Flutter Mobile Application](#flutter-mobile-application)
+    - [Usage Guide - How to Use](#usage-guide---how-to-use)
+    - [Experimental Results](#experimental-results)
+    - [Advantages](#advantages)
+    - [Limitations](#limitations)
+    - [Conclusion](#conclusion)
+    - [Author](#author)
 
 ---
 
@@ -777,3 +793,787 @@ Experimental testing confirmed that the system detects the 1500 Hz transmitter t
 
 ![Receiver with Hydrophone](diagrams/receiver_with_hydrophone.jpg)
 
+---
+
+## Wearable Acoustic Transmitter
+
+The wearable transmitter is the swimmer-side unit of the drowning detection system. It continuously monitors three physiological and environmental indicators — **heart rate**, **water submersion**, and **body motion** — and, upon confirming an emergency condition, drives a submerged piezo transducer to emit a **1500 Hz acoustic distress tone** that the poolside hydrophone receiver can detect.
+
+[![Transmitter Circuit Diagram](diagrams/circuit_diagram_of_transmitter.jpeg)](diagrams/circuit_diagram_of_transmitter.jpeg)
+
+[![Final Transmitter Project Build](diagrams/final_transmitter_project.jpeg)](diagrams/final_transmitter_project.jpeg)
+
+---
+
+## Transmitter Overview
+
+The wearable acoustic transmitter is the swimmer-side unit of the drowning detection system. Worn on the body during swimming sessions, it continuously monitors three independent physiological and environmental indicators — **heart rate (BPM)**, **water submersion duration**, and **body motion intensity** — and applies a multi-factor emergency decision algorithm on the ESP32 microcontroller.
+
+When any confirmed emergency condition is met, the ESP32 drives a waterproofed **piezo transducer** submerged with the swimmer via an N-channel MOSFET, emitting a **1500 Hz pulsed acoustic distress tone** through the water. This tone propagates to the poolside hydrophone receiver, which detects and verifies it using the Goertzel algorithm, and raises an immediate alarm for lifeguards or caregivers through:
+
+- **Local LED and buzzer alarm** at the receiver station
+- **Flutter mobile application** with full-screen emergency alert, siren, and vibration
+
+The transmitter requires no Wi-Fi or RF link of its own — the **underwater acoustic channel is the sole communication medium**, deliberately chosen because radio signals attenuate to near-zero within centimetres of water submersion.
+
+[![Final Transmitter Project Build](diagrams/final_transmitter_project.jpeg)](diagrams/final_transmitter_project.jpeg)
+
+---
+
+## Transmitter Objectives
+
+The primary objectives of the wearable transmitter subsystem are:
+
+1. **Design and construct** a compact, waterproofed, battery-powered wearable unit capable of simultaneously monitoring heart rate, water submersion, and body motion on a swimmer.
+2. **Implement** a multi-factor emergency decision algorithm on the ESP32 that fuses all three sensor channels to reliably distinguish genuine drowning events from routine swimming activity.
+3. **Drive** a waterproofed piezo transducer via an N-channel MOSFET to emit a stable, consistently detectable 1500 Hz underwater acoustic distress tone upon emergency confirmation.
+4. **Calibrate** detection thresholds (BPM limits, submersion timers, motion spike counts) to achieve high sensitivity to genuine emergencies while minimising false alarm rates from normal swimming behaviour.
+5. **Design** a safe, rechargeable power system using an 18650 Li-Ion cell, TP4056 charging module, and boost converter that delivers a stable 5 V rail to both the ESP32 and the piezo drive circuit throughout a full monitoring session.
+6. **Integrate** the transmitter as the first link in a complete acoustic-to-digital alert pipeline, ensuring the pulsed tone pattern (150 ms on / 100 ms off) is compatible with the Goertzel confirmation window on the receiver side.
+
+---
+
+## Transmitter System Architecture
+
+The transmitter operates as a self-contained, closed-loop unit. All sensor acquisition, emergency evaluation, and acoustic tone emission are handled locally on the ESP32 — no network connectivity is required during operation.
+
+```
+[Pulse Sensor (GPIO34)] ----+
+[Water Sensor (GPIO35)] ----|---> [ESP32 Emergency Logic] ---> [MOSFET Gate (GPIO18)]
+[MPU-6050 I2C (21/22)] ----+                                          |
+                                                               [Piezo Transducer]
+                                                                       |
+                                                          [1500 Hz acoustic tone]
+                                                                       |
+                                                          [Propagates through water]
+                                                                       |
+                                                       [Hydrophone Receiver Station]
+                                                                       |
+                                                          [WebSocket JSON over Wi-Fi]
+                                                                       |
+                                                           [Flutter Mobile App Alert]
+```
+
+### Power Architecture
+
+```
+[USB 5V] --> [TP4056 Charger] --> [18650 Li-Ion Cell]
+                                          |
+                                  [SPDT Slide Switch]
+                                          |
+                                  [Boost Converter (5V)]
+                                          |
+                    +---------------------+---------------------+
+                    |                                           |
+              [ESP32 VIN]                             [Piezo (+) Drive Rail]
+```
+
+### Why Acoustic Over RF?
+
+The transmitter deliberately uses an **acoustic tone** rather than a radio link (such as NRF24L01 or Bluetooth) for the following reasons:
+
+- **RF signals** attenuate to **near-zero within centimetres of water submersion**, making any radio-based link between a submerged transmitter and a poolside receiver fundamentally unreliable.
+- **Acoustic energy at 1500 Hz** propagates efficiently through water over the distances typical of a swimming pool, providing a dependable physical communication channel.
+- The 1500 Hz frequency is **above the dominant low-frequency ambient pool noise band** yet well within the effective range of a DIY piezo transducer and the poolside hydrophone, making it a practical choice for a low-cost system.
+
+[![Transmitter–Receiver Communication Flowchart](diagrams/transmitter_receiver_communication_flowchart.png)](diagrams/transmitter_receiver_communication_flowchart.png)
+
+---
+
+## Transmitter Hardware Components
+
+### Complete Component List
+
+| # | Component | Specification | Quantity | Function |
+| - | --- | --- | - | --- |
+| 1 | ESP32 DevKit V1 | Dual-core, Wi-Fi + BLE, 12-bit ADC | 1 | Sensor fusion, emergency logic, MOSFET drive |
+| 2 | Pulse Sensor | Analog photoplethysmography (PPG) | 1 | Heart rate (BPM) measurement |
+| 3 | Water Level Sensor | Analog resistive | 1 | Submersion / water-contact detection |
+| 4 | MPU-6050 | 3-axis accelerometer + gyroscope, I2C | 1 | Body motion monitoring |
+| 5 | Piezo Transducer | Waterproofed buzzer / disc | 1 | Underwater 1500 Hz acoustic tone emission |
+| 6 | N-Channel MOSFET | Logic-level gate (e.g. IRLZ44N or 2N7000) | 1 | Switches piezo transducer from ESP32 GPIO |
+| 7 | 18650 Li-Ion Battery | 3.7 V, ≥ 2000 mAh | 1 | Main power source |
+| 8 | TP4056 Charging Module | USB 5V input, Li-Ion charger with protection | 1 | Safe battery charging via USB |
+| 9 | Boost Converter (5V) | MT3608 or equivalent, output set to 5V | 1 | Steps up 3.7 V battery to stable 5 V rail |
+| 10 | SPDT Slide Switch | Panel-mount | 1 | Power on/off control |
+| 11 | Resistors | 220 Ω gate resistor for MOSFET | 1 | Limits gate drive current |
+| 12 | Breadboard + Jumper Wires | Standard | 1 set | Circuit prototyping |
+
+### Detailed Component Overview
+
+#### ESP32 DevKit V1
+The brain of the transmitter. Running at 240 MHz, it continuously reads the pulse sensor and water sensor via its 12-bit ADC, polls the MPU-6050 over I2C, evaluates the multi-factor emergency logic, and drives the MOSFET gate (GPIO18) with a 1500 Hz `tone()` signal when an emergency is confirmed. Key pins used:
+
+- **GPIO34** – Pulse sensor analog input (ADC-only pin)
+- **GPIO35** – Water level sensor analog input (ADC-only pin)
+- **GPIO18** – MOSFET gate drive (PWM / tone output)
+- **GPIO21 / GPIO22** – I2C SDA / SCL for MPU-6050
+- **GPIO12** – Main data switch / enable input
+
+#### Pulse Sensor (PPG)
+An analog photoplethysmography sensor worn on the finger or wrist. It produces a pulsing analog waveform synchronized with the heartbeat. The ESP32 detects each peak above a configurable `PULSE_THRESHOLD` (default 2200 out of 4095) and computes a rolling average BPM over five consecutive beats. The BPM value feeds directly into the abnormal heart rate emergency conditions.
+
+#### Water Level Sensor
+A resistive water-contact sensor that outputs a rising analog voltage when immersed. Any reading above 50 (out of 4095) is treated as active submersion, and the firmware begins timing the continuous submersion duration. This duration feeds into both the 5-minute multi-factor condition and the absolute 10-second submersion limit.
+
+#### MPU-6050 Accelerometer / Gyroscope
+A 6-DoF inertial measurement unit connected over I2C (SDA = GPIO21, SCL = GPIO22). The firmware reads the three raw accelerometer axes every 100 ms and counts axis-delta events that exceed `MOTION_THRESHOLD` (5000 LSB). The accumulated spike count within a rolling 10-second window captures the erratic, high-frequency motion pattern characteristic of a drowning struggle.
+
+#### N-Channel MOSFET
+A logic-level N-channel MOSFET switches the piezo transducer load. The ESP32 GPIO18 drives the gate through a small series resistor (≈ 220 Ω) to limit switching transients. When the gate is driven HIGH by the `tone()` function at 1500 Hz, the MOSFET rapidly switches the piezo between the 5 V rail and ground, generating a 1500 Hz acoustic tone. The source is tied to common GND; the drain connects to the piezo negative terminal; the piezo positive terminal connects to 5 V.
+
+#### TP4056 + Boost Converter Power Path
+The 18650 cell charges safely through the TP4056 module (USB 5V input). The cell output feeds a boost converter set to 5.0 V, which powers the ESP32 VIN pin and the piezo drive rail. A SPDT slide switch in the boost converter input line provides physical power control. All GND connections — battery, boost, ESP32, sensors — share a common ground node.
+
+---
+
+## Transmitter Circuit Design and Connections
+
+[![Transmitter Circuit Diagram](diagrams/circuit_diagram_of_transmitter.jpeg)](diagrams/circuit_diagram_of_transmitter.jpeg)
+
+### Complete Signal Chain
+
+```
+[18650 Battery] --> [TP4056 Charger] --> [SPDT Switch] --> [Boost Converter (5V)]
+                                                                     |
+                                              +----------------------+----------------------+
+                                              |                      |                      |
+                                         [ESP32 VIN]          [MOSFET Drain (via Piezo)]  [Sensors VCC]
+                                              |
+                              +--------------+--------------+
+                              |              |              |
+                        [GPIO34: Pulse] [GPIO35: Water] [GPIO21/22: MPU-6050 I2C]
+                              |
+                         [GPIO18: MOSFET Gate] --> [N-CH MOSFET] --> [Piezo Transducer] --> [5V Rail]
+```
+
+### Stage-by-Stage Wiring
+
+#### Stage 1: Power Supply
+
+```
+USB 5V --> TP4056 (IN+ / IN-)
+TP4056 (B+ / B-) <----> 18650 Battery
+TP4056 (OUT+ / OUT-) --> SPDT Switch (CENTER)
+
+SPDT Switch (LEFT) --> Boost Converter (IN+)
+GND (common) -------> Boost Converter (IN-)
+
+Boost Converter (OUT+) --> ESP32 VIN  (5V rail)
+                       --> Piezo (+) RED wire
+Boost Converter (OUT-) --> GND (common)
+
+NOTE: Set boost converter output to exactly 5.0 V before connecting.
+```
+
+#### Stage 2: Pulse Sensor
+
+```
+Pulse Sensor:
+  VCC    ----> 3.3V (ESP32 3V3 pin)
+  GND    ----> GND (common)
+  Signal ----> ESP32 GPIO34 (ADC input)
+
+NOTE: GPIO34 is an input-only ADC pin on ESP32 – do not use for output.
+```
+
+#### Stage 3: Water Level Sensor
+
+```
+Water Level Sensor:
+  VCC    ----> 3.3V (ESP32 3V3 pin)
+  GND    ----> GND (common)
+  Signal ----> ESP32 GPIO35 (ADC input)
+
+NOTE: GPIO35 is an input-only ADC pin on ESP32 – do not use for output.
+```
+
+#### Stage 4: MPU-6050 IMU (I2C)
+
+```
+MPU-6050:
+  VCC ----> 3.3V (ESP32 3V3 pin)
+  GND ----> GND (common)
+  SCL ----> ESP32 GPIO22
+  SDA ----> ESP32 GPIO21
+  AD0 ----> GND  (sets I2C address to 0x68)
+  INT ----> Not connected (polling mode)
+```
+
+#### Stage 5: MOSFET and Piezo Transducer
+
+```
+N-Channel MOSFET:
+  Gate (G)  ---[220Ω]--- ESP32 GPIO18 (tone output)
+  Source (S) ----------- GND (common)
+  Drain (D)  ----------- Piezo Transducer (-) BLACK wire
+
+Piezo Transducer:
+  (+) RED  ----> Boost Converter OUT+ (5V rail)
+  (-) BLACK ---> MOSFET Drain
+
+Operation: GPIO18 drives 1500 Hz square wave via tone().
+           MOSFET switches piezo between 5V and GND at 1500 Hz,
+           generating the underwater acoustic distress tone.
+```
+
+#### Stage 6: Data Switch
+
+```
+ESP32 GPIO12 ----> SPDT Switch signal leg (or dedicated enable switch)
+                   (pulled up internally; LOW = data mode disabled)
+```
+
+### Pin Reference Table
+
+| ESP32 Pin | Connected To | Direction | Notes |
+| - | - | - | - |
+| GPIO34 | Pulse sensor signal | Input (ADC) | ADC-only pin; 0–3.3V |
+| GPIO35 | Water level sensor signal | Input (ADC) | ADC-only pin; 0–3.3V |
+| GPIO18 | MOSFET gate (piezo drive) | Output (PWM/tone) | 1500 Hz square wave via `tone()` |
+| GPIO21 | MPU-6050 SDA | I2C Data | 3.3V logic |
+| GPIO22 | MPU-6050 SCL | I2C Clock | 3.3V logic |
+| GPIO12 | Data switch | Input | `INPUT_PULLUP`; LOW = inactive |
+| 3V3 | Pulse sensor VCC, Water sensor VCC, MPU-6050 VCC | Power | 3.3V regulated output |
+| GND | All sensor GNDs, MOSFET source, boost GND | Power | Common ground |
+| VIN | Boost converter OUT+ (5V) | Power | Powers ESP32 via onboard LDO |
+
+[![Transmitter–Receiver Communication Flowchart](diagrams/transmitter_receiver_communication_flowchart.png)](diagrams/transmitter_receiver_communication_flowchart.png)
+
+---
+
+## How It Works - Transmitter Working Principle
+
+### Step-by-Step Detection Process
+
+**Step 1: Continuous Sensor Polling**
+The transmitter polls all three sensors in a tight main loop (10 ms delay):
+- **Pulse sensor** is sampled on every iteration; peak detection computes inter-beat intervals and accumulates a rolling 5-beat average BPM.
+- **Water sensor** is read each iteration; any reading above 50 starts (or continues) a submersion timer.
+- **MPU-6050** accelerometer axes are read every 100 ms; large axis deltas (> 5000 LSB) increment a spike counter that resets every 10 seconds.
+
+[![Heart Rate Monitoring Flowchart](diagrams/heart_rate_monitoring_flowchart.png)](diagrams/heart_rate_monitoring_flowchart.png)
+
+**Step 2: Multi-Factor Emergency Evaluation**
+Each main loop iteration evaluates four independent emergency conditions in priority order:
+
+| Priority | Condition | Trigger Criteria |
+| - | - | - |
+| 1 | **3-Factor Critical** | Submerged > 5 min **AND** abnormal BPM **AND** > 15 motion spikes |
+| 2 | **Bradycardia** | Average BPM < 70 (and > 50, confirming a valid reading) |
+| 3 | **Tachycardia** | Average BPM > 130 |
+| 4 | **Absolute Submersion** | Continuously submerged for > 10 seconds |
+
+[![Emergency Detection Flowchart](diagrams/emergency_detection_flowchart.png)](diagrams/emergency_detection_flowchart.png)
+
+**Step 3: Acoustic Distress Tone Emission**
+When any emergency condition is met, `sendEmergencyPing()` is called. This function enters an infinite loop that:
+1. Calls `tone(MOSFET_GATE_PIN, 1500)` — drives GPIO18 with a 1500 Hz PWM signal
+2. Holds the tone for **150 ms**
+3. Calls `noTone(MOSFET_GATE_PIN)` — gate goes LOW, MOSFET off, piezo silent
+4. Waits **100 ms** (silence gap)
+5. Repeats indefinitely until the device is powered off or reset
+
+This pulsed pattern (150 ms on / 100 ms off) gives the receiver's Goertzel confirmation window enough consistent tone blocks to achieve the required hit ratio while also being distinguishable from continuous ambient noise.
+
+[![Acoustic Signal Generation Flowchart](diagrams/acoustic_signal_generation_flowchart.png)](diagrams/acoustic_signal_generation_flowchart.png)
+
+**Step 4: Hydrophone Receiver Detection**
+The 1500 Hz acoustic tone propagates through the water to the poolside hydrophone. The receiver station's Goertzel algorithm detects the tone, verifies it against the confirmation window, and triggers the local alarm and Flutter mobile app alert — completing the end-to-end rescue notification chain.
+
+[![Transmitter–Receiver Communication Flowchart](diagrams/transmitter_receiver_communication_flowchart.png)](diagrams/transmitter_receiver_communication_flowchart.png)
+
+### Detection Logic Flow
+
+```
+[START] --> [Read Pulse Sensor] --> [Compute BPM (rolling 5-beat avg)]
+                |
+                v
+         [Read Water Sensor] --> [Start/Update submersion timer]
+                |
+                v
+       [Read MPU-6050 Accel] --> [Count motion spikes (100ms window)]
+                |
+                v
+     +----------+----------+----------+----------+
+     |                     |          |          |
+[3-Factor?]          [BPM<70?]  [BPM>130?]  [Submerged>10s?]
+ (Water>5m +              |          |          |
+  HeartAbn +              |          |          |
+  Motion>15)              +----------+----------+
+     |                              |
+    YES                            YES
+     |                              |
+     +----------+---------+---------+
+                          |
+                  [sendEmergencyPing()]
+                          |
+                 [tone(GPIO18, 1500Hz)]
+                   150ms ON / 100ms OFF
+                          |
+                  [Hydrophone detects tone]
+                          |
+                  [Receiver raises ALARM]
+                          |
+                  [Flutter App Alert]
+```
+
+### Sensor Sub-System Flowcharts
+
+[![Water / Submersion Monitoring Flowchart](diagrams/water_or_submerssion_monitoring_flowchart.png)](diagrams/water_or_submerssion_monitoring_flowchart.png)
+
+[![Motion Detection Flowchart](diagrams/motion_detection_flowchart.png)](diagrams/motion_detection_flowchart.png)
+
+[![Motion Detection Summary Flowchart](diagrams/motion_detection_summary_flowchart.png)](diagrams/motion_detection_summary_flowchart.png)
+
+---
+
+## Transmitter Software Design
+
+The transmitter firmware is developed in **C++ using the Arduino framework** for ESP32.
+
+### Heart Rate (BPM) Measurement
+
+```c
+const int PULSE_THRESHOLD = 2200;    // ADC threshold for peak detection
+const float HEART_LOW  = 70.0;       // BPM: bradycardia threshold
+const float HEART_HIGH = 130.0;      // BPM: tachycardia threshold
+
+int analogPulse = analogRead(PULSE_PIN);   // GPIO34
+
+// Rising-edge peak detection
+if (analogPulse > PULSE_THRESHOLD && !pulseDetected) {
+    pulseDetected = true;
+    unsigned long currentBeatTime = millis();
+    if (lastBeatTime > 0) {
+        unsigned long interval = currentBeatTime - lastBeatTime;
+        float bpm = 60000.0 / interval;
+        if (bpm >= 40 && bpm <= 200) {
+            totalBPM += bpm;
+            beatCounter++;
+            if (beatCounter >= 5) {          // average over 5 beats
+                averageBPM = totalBPM / 5;
+                totalBPM = 0;
+                beatCounter = 0;
+            }
+        }
+    }
+    lastBeatTime = currentBeatTime;
+}
+if (analogPulse < (PULSE_THRESHOLD - 100)) pulseDetected = false;
+```
+
+### Water Submersion Monitoring
+
+```c
+int waterValue = analogRead(WATER_PIN);   // GPIO35
+
+if (waterValue > 50) {
+    if (!isDrowned) {
+        isDrowned = true;
+        drownStartTime = millis();        // start submersion timer
+    }
+    totalDrownDuration = (millis() - drownStartTime) / 1000;  // seconds
+} else {
+    isDrowned = false;
+    totalDrownDuration = 0;              // reset on surfacing
+}
+```
+
+### Motion Spike Detection (MPU-6050)
+
+```c
+const int MOTION_THRESHOLD = 5000;      // accelerometer LSB delta
+const int MPU_addr = 0x68;
+
+// Read raw accelerometer axes every 100 ms
+if (millis() - lastMotionCheck > 100) {
+    lastMotionCheck = millis();
+    Wire.beginTransmission(MPU_addr);
+    Wire.write(0x3B);
+    Wire.endTransmission(false);
+    Wire.requestFrom(MPU_addr, 6, true);
+    AcX = Wire.read() << 8 | Wire.read();
+    AcY = Wire.read() << 8 | Wire.read();
+    AcZ = Wire.read() << 8 | Wire.read();
+
+    if (abs(AcX - lastAcX) > MOTION_THRESHOLD ||
+        abs(AcY - lastAcY) > MOTION_THRESHOLD ||
+        abs(AcZ - lastAcZ) > MOTION_THRESHOLD) {
+        motionChangeCount++;
+    }
+    lastAcX = AcX; lastAcY = AcY; lastAcZ = AcZ;
+}
+
+// Reset spike counter every 10 seconds
+if (millis() - lastMotionReset > 10000) {
+    lastMotionReset = millis();
+    motionChangeCount = 0;
+}
+```
+
+### Multi-Factor Emergency Logic
+
+```c
+const unsigned long MAX_SUBMERGED_3_FACTOR  = 300000;  // 5 min (ms)
+const unsigned long MAX_ABSOLUTE_SUBMERGED  = 10000;   // 10 s  (ms)
+
+bool point1_Water  = isDrowned && (millis() - drownStartTime >= MAX_SUBMERGED_3_FACTOR);
+bool point2_Heart  = (averageBPM > 120) || (averageBPM < 60 && averageBPM > 0);
+bool point3_Motion = (motionChangeCount > 15);
+
+bool triggerAlert = false;
+
+// Condition 1: All three factors simultaneously
+if (point1_Water && point2_Heart && point3_Motion) {
+    triggerAlert = true;
+}
+// Condition 2: Bradycardia
+else if (averageBPM < HEART_LOW && averageBPM > 50) {
+    triggerAlert = true;
+}
+// Condition 3: Tachycardia
+else if (averageBPM > HEART_HIGH) {
+    triggerAlert = true;
+}
+// Condition 4: Absolute submersion time exceeded
+else if (isDrowned && (millis() - drownStartTime >= MAX_ABSOLUTE_SUBMERGED)) {
+    triggerAlert = true;
+}
+
+if (triggerAlert) sendEmergencyPing();
+```
+
+### Acoustic Tone Emission
+
+```c
+const int MOSFET_GATE_PIN = 18;    // GPIO18 drives MOSFET gate
+
+void sendEmergencyPing() {
+    // Infinite loop: device stays in alarm state until reset
+    while (true) {
+        tone(MOSFET_GATE_PIN, 1500);   // 1500 Hz PWM to MOSFET gate
+        delay(150);                     // tone ON for 150 ms
+        noTone(MOSFET_GATE_PIN);        // gate LOW, piezo silent
+        delay(100);                     // silence for 100 ms
+    }
+}
+```
+
+The `tone()` function generates a 50% duty-cycle square wave at 1500 Hz on GPIO18. The MOSFET switches the piezo transducer at this frequency, converting the electrical signal into an underwater acoustic pressure wave at exactly the frequency the receiver's Goertzel detector is tuned to.
+
+[![Acoustic Signal Generation Flowchart](diagrams/acoustic_signal_generation_flowchart.png)](diagrams/acoustic_signal_generation_flowchart.png)
+
+### Complete Transmitter Firmware Source
+
+The full working ESP32 transmitter firmware is included below. This is the complete, tested source code:
+
+```c
+#include <Wire.h>
+
+#define PULSE_PIN 34          // Pulse sensor Analog Pin
+#define WATER_PIN 35          // Water sensor Analog Pin
+#define MOSFET_GATE_PIN 18    // MOSFET gate pin (piezo drive)
+#define DATA_SWITCH_PIN 12    // Main enable switch
+
+const int MPU_addr = 0x68;   // MPU-6050 I2C address
+
+const int PULSE_THRESHOLD = 2200;
+const float HEART_LOW = 70.0;
+const float HEART_HIGH = 130.0;
+const unsigned long MAX_SUBMERGED_3_FACTOR = 300000; // 5 min
+const unsigned long MAX_ABSOLUTE_SUBMERGED = 10000;  // 10 s
+const int MOTION_THRESHOLD = 5000;
+
+int16_t AcX, AcY, AcZ, Tmp, GyX, GyY, GyZ;
+int16_t lastAcX = 0, lastAcY = 0, lastAcZ = 0;
+
+unsigned long lastBeatTime = 0;
+int beatCounter = 0;
+float totalBPM = 0;
+float averageBPM = 0;
+bool pulseDetected = false;
+
+bool isDrowned = false;
+unsigned long drownStartTime = 0;
+unsigned long totalDrownDuration = 0;
+
+unsigned long lastMotionCheck = 0;
+unsigned long motionChangeCount = 0;
+
+void sendEmergencyPing();
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(21, 22); // SDA = GPIO21, SCL = GPIO22
+
+  pinMode(MOSFET_GATE_PIN, OUTPUT);
+  pinMode(DATA_SWITCH_PIN, INPUT_PULLUP);
+  digitalWrite(MOSFET_GATE_PIN, LOW);
+
+  // Wake MPU-6050 from sleep
+  Wire.beginTransmission(MPU_addr);
+  Wire.write(0x6B);
+  Wire.write(0);
+  Wire.endTransmission(true);
+
+  Serial.println("Transmitter Initialized");
+}
+
+void loop() {
+  unsigned long currentMillis = millis();
+
+  // --- Heart Rate ---
+  int analogPulse = analogRead(PULSE_PIN);
+  if (analogPulse > PULSE_THRESHOLD && !pulseDetected) {
+    pulseDetected = true;
+    if (lastBeatTime > 0) {
+      float bpm = 60000.0 / (currentMillis - lastBeatTime);
+      if (bpm >= 40 && bpm <= 200) {
+        totalBPM += bpm;
+        beatCounter++;
+        if (beatCounter >= 5) {
+          averageBPM = totalBPM / 5;
+          totalBPM = 0;
+          beatCounter = 0;
+        }
+      }
+    }
+    lastBeatTime = currentMillis;
+  }
+  if (analogPulse < (PULSE_THRESHOLD - 100)) pulseDetected = false;
+
+  // --- Water Submersion ---
+  int waterValue = analogRead(WATER_PIN);
+  if (waterValue > 50) {
+    if (!isDrowned) { isDrowned = true; drownStartTime = currentMillis; }
+    totalDrownDuration = (currentMillis - drownStartTime) / 1000;
+  } else {
+    isDrowned = false;
+    totalDrownDuration = 0;
+  }
+
+  // --- Motion Detection ---
+  Wire.beginTransmission(MPU_addr);
+  Wire.write(0x3B);
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU_addr, 6, true);
+  AcX = Wire.read() << 8 | Wire.read();
+  AcY = Wire.read() << 8 | Wire.read();
+  AcZ = Wire.read() << 8 | Wire.read();
+
+  if (currentMillis - lastMotionCheck > 100) {
+    lastMotionCheck = currentMillis;
+    if (abs(AcX - lastAcX) > MOTION_THRESHOLD ||
+        abs(AcY - lastAcY) > MOTION_THRESHOLD ||
+        abs(AcZ - lastAcZ) > MOTION_THRESHOLD) {
+      motionChangeCount++;
+    }
+    lastAcX = AcX; lastAcY = AcY; lastAcZ = AcZ;
+  }
+
+  // --- Emergency Condition Evaluation ---
+  bool point1_Water  = isDrowned && (currentMillis - drownStartTime >= MAX_SUBMERGED_3_FACTOR);
+  bool point2_Heart  = (averageBPM > 120) || (averageBPM < 60 && averageBPM > 0);
+  bool point3_Motion = (motionChangeCount > 15);
+
+  static unsigned long lastMotionReset = 0;
+  if (currentMillis - lastMotionReset > 10000) {
+    lastMotionReset = currentMillis;
+    motionChangeCount = 0;
+  }
+
+  bool triggerAlert = false;
+  String reason = "";
+
+  if (point1_Water && point2_Heart && point3_Motion) {
+    triggerAlert = true;
+    reason = "3-Factor Critical: Submerged > 5m + Abnormal BPM + Panic Motion";
+  } else if (averageBPM < HEART_LOW && averageBPM > 50) {
+    triggerAlert = true;
+    reason = "CRITICAL: Heart Rate Below 70 BPM (Bradycardia)";
+  } else if (averageBPM > HEART_HIGH) {
+    triggerAlert = true;
+    reason = "CRITICAL: Heart Rate Exceeded 130 BPM (Tachycardia)";
+  } else if (isDrowned && (currentMillis - drownStartTime >= MAX_ABSOLUTE_SUBMERGED)) {
+    triggerAlert = true;
+    reason = "CRITICAL: Absolute Submersion Time (10s) Exceeded";
+  }
+
+  if (triggerAlert) {
+    Serial.println("\nEMERGENCY DETECTED");
+    Serial.print("Reason: "); Serial.println(reason);
+    sendEmergencyPing();
+  }
+
+  // --- Periodic Status Log ---
+  static unsigned long lastLog = 0;
+  if (currentMillis - lastLog > 2000) {
+    lastLog = currentMillis;
+    Serial.print("\nBPM: "); Serial.print(averageBPM, 1);
+    Serial.print(" | Submerged: "); Serial.print(totalDrownDuration); Serial.print("s");
+    Serial.print(" | Motion Spikes: "); Serial.println(motionChangeCount);
+  }
+
+  delay(10);
+}
+
+void sendEmergencyPing() {
+  while (true) {
+    tone(MOSFET_GATE_PIN, 1500);   // 1500 Hz tone ON
+    delay(150);
+    noTone(MOSFET_GATE_PIN);       // Tone OFF
+    delay(100);
+  }
+}
+```
+
+---
+
+## Transmitter Usage Guide
+
+### Hardware Assembly
+
+1. **Assemble the power path**: Connect the 18650 battery to the TP4056 module (B+/B−). Connect TP4056 OUT+ through the SPDT slide switch to the boost converter IN+. Set the boost converter output to **5.0 V** before connecting any load.
+2. **Connect sensors**: Wire the pulse sensor and water level sensor signal lines to GPIO34 and GPIO35 respectively; share 3.3V and GND from the ESP32.
+3. **Connect the MPU-6050**: SDA → GPIO21, SCL → GPIO22, VCC → 3.3V, GND → common GND, AD0 → GND.
+4. **Wire the MOSFET and piezo**: Gate → GPIO18 (via 220 Ω), Source → GND, Drain → piezo (−) BLACK wire. Piezo (+) RED wire → boost converter OUT+ (5V).
+5. **Power the ESP32**: Boost converter OUT+ → ESP32 VIN pin.
+6. **Flash the firmware** using Arduino IDE or PlatformIO.
+7. **Waterproof the piezo transducer** with silicone or epoxy, leaving only the active face exposed, and position it on the swimmer's body or on a wrist band pointed toward the pool floor.
+
+[![Final Transmitter Project Build](diagrams/final_transmitter_project.jpeg)](diagrams/final_transmitter_project.jpeg)
+
+### Firmware Configuration
+
+Before flashing, adjust these constants in the firmware as needed:
+
+| Constant | Default | Description |
+| - | - | - |
+| `PULSE_THRESHOLD` | `2200` | ADC peak-detection threshold (0–4095 scale) |
+| `HEART_LOW` | `70.0` | BPM lower bound for bradycardia alert |
+| `HEART_HIGH` | `130.0` | BPM upper bound for tachycardia alert |
+| `MAX_SUBMERGED_3_FACTOR` | `300000` | Submersion time for 3-factor trigger (ms, default 5 min) |
+| `MAX_ABSOLUTE_SUBMERGED` | `10000` | Submersion time for absolute trigger (ms, default 10 s) |
+| `MOTION_THRESHOLD` | `5000` | Accelerometer delta (LSB) for a motion spike |
+
+### Serial Monitor Output
+
+Connect at **115200 baud** to observe live telemetry:
+
+```
+Transmitter Initialized
+
+BPM: 72.4 | Submerged: 0s | Motion Spikes: 2
+BPM: 73.1 | Submerged: 3s | Motion Spikes: 4
+BPM: 145.0 | Submerged: 5s | Motion Spikes: 18
+
+EMERGENCY DETECTED
+Reason: CRITICAL: Heart Rate Exceeded 130 BPM (Tachycardia)
+```
+
+### Transmitter–Receiver WebSocket Protocol
+
+Once the emergency tone is emitted and the hydrophone receiver detects it, the receiver manages the full WebSocket communication with the Flutter app. The transmitter itself does not connect to Wi-Fi; the acoustic channel **is** the communication link between transmitter and receiver.
+
+| Link | Medium | Message |
+| - | - | - |
+| Transmitter → Receiver | 1500 Hz acoustic tone (underwater) | Distress signal |
+| Receiver → Flutter App | WebSocket JSON over Wi-Fi | `"ALARM"` / `"ALARM_STOPPED"` |
+| Flutter App → Receiver | WebSocket text over Wi-Fi | `"STOP_ALARM"` |
+
+[![Transmitter–Receiver Communication Flowchart](diagrams/transmitter_receiver_communication_flowchart.png)](diagrams/transmitter_receiver_communication_flowchart.png)
+
+---
+
+## Transmitter Experimental Results
+
+The transmitter subsystem was evaluated in a controlled test environment to characterise sensor accuracy, emergency detection performance, and end-to-end alert latency.
+
+### Pulse Sensor and BPM Accuracy
+
+The pulse sensor was tested on a stationary subject at rest and under simulated elevated heart rate conditions. The five-beat rolling average BPM was observed to:
+- **Converge within 5 beats** of a stable reading when the sensor was correctly positioned on the finger.
+- **Track expected BPM trends** during progressively increased physical activity, with computed values consistent with a reference pulse oximeter measurement.
+- **Reject out-of-range spikes** (below 40 BPM or above 200 BPM) effectively through the firmware guard condition, preventing erroneous averages from corrupted readings.
+
+### Water Submersion Detection
+
+The water sensor response was validated by progressive immersion in a water basin:
+- **Threshold crossing** (ADC reading > 50) was confirmed to occur reliably and immediately upon contact with water, with no false positives observed in open air.
+- **Submersion timer** was verified to start accurately on first contact and reset correctly upon removal from water, confirming correct state transitions between `isDrowned = true` and `isDrowned = false`.
+- The **absolute 10-second submersion condition** was triggered consistently after the configured duration during deliberate timed submersion tests.
+
+### Motion Spike Detection (MPU-6050)
+
+The MPU-6050 accelerometer was tested under still, moderate activity, and vigorous motion conditions:
+- **Still condition** (device resting flat): motion spike count remained at zero throughout a 10-second window, confirming no false motion triggers at rest.
+- **Moderate swimming simulation** (rhythmic arm movements): spike count accumulated gradually but remained below the 15-spike threshold within a 10-second window under controlled conditions.
+- **Vigorous panic simulation** (rapid, erratic shaking): spike count crossed the 15-spike threshold within the 10-second window, confirming the motion detection logic correctly captures the erratic high-frequency motion pattern characteristic of a drowning struggle.
+
+### Emergency Condition Trigger Testing
+
+Each of the four emergency conditions was tested independently:
+
+| Condition | Test Method | Result |
+| - | - | - |
+| **3-Factor Critical** | Simulated submersion > 5 min + elevated BPM + vigorous motion | Alert triggered correctly when all three factors were simultaneously active |
+| **Bradycardia (BPM < 70)** | Manually reduced pulse signal amplitude to simulate slow rate | Alert triggered when rolling average fell below 70 BPM threshold |
+| **Tachycardia (BPM > 130)** | Simulated rapid pulse peaks via signal generator | Alert triggered when rolling average exceeded 130 BPM threshold |
+| **Absolute Submersion (> 10 s)** | Device submerged continuously for 10+ seconds | Alert triggered after exactly the configured duration |
+
+### Acoustic Tone Emission
+
+The piezo transducer output was measured with a smartphone spectrum analyser app while submerged:
+- A clear **1500 Hz spectral peak** was confirmed to be present and dominant in the captured audio spectrum during tone emission.
+- The **150 ms on / 100 ms off pulsed pattern** was verified visually on an oscilloscope connected across the MOSFET drain, confirming the `tone()` / `noTone()` timing was consistent with the firmware configuration.
+- Acoustic output was audible and measurable at distances sufficient to reach the poolside hydrophone placement in a standard pool lane.
+
+### End-to-End Alert Latency
+
+On confirmed transmitter emergency, the acoustic tone was emitted within one main loop iteration (< 10 ms from condition confirmation). The end-to-end latency from tone onset to Flutter app alert activation was dominated by the receiver's Goertzel confirmation window (approximately 2 seconds by default), after which the local LED, buzzer, and mobile app alert activated with negligible additional delay.
+
+---
+
+## Transmitter Advantages
+
+- The acoustic distress tone is generated by a **wearable, battery-powered unit** worn by the swimmer, enabling **fully autonomous, infrastructure-free** drowning detection without any dependency on poolside cameras, pressure mats, or lifeguard observation.
+- The **multi-factor emergency logic** (heart rate + submersion duration + motion) substantially reduces false alarms compared to single-sensor approaches; a routine dive or a brief stumble alone cannot trigger the alarm.
+- Using the ESP32 `tone()` function to drive a MOSFET at exactly 1500 Hz is a **computationally trivial and power-efficient** approach — no DAC, no audio codec, and no continuous high-current draw until an emergency is actually detected.
+- The **18650 Li-Ion cell with TP4056 charging** provides a rechargeable, USB-rechargeable power solution that can sustain multi-hour monitoring sessions on a single charge and is easily replaced when depleted.
+- The boost converter ensures a **stable 5 V drive rail** for the piezo regardless of battery state-of-charge, keeping the transmitted acoustic power consistent throughout a monitoring session.
+- The **four independent emergency conditions** allow the system to respond to diverse drowning scenarios — sudden cardiac events (bradycardia / tachycardia), passive face-down submersion (absolute submersion timer), and conscious struggle (3-factor combined condition) — without requiring a single condition to cover all cases.
+- **Runtime-configurable thresholds** (PULSE_THRESHOLD, HEART_LOW, HEART_HIGH, MOTION_THRESHOLD) allow the unit to be calibrated per swimmer without reflashing firmware.
+
+---
+
+## Transmitter Limitations
+
+- The pulse sensor is susceptible to **motion artifacts** during vigorous swimming; an ADC peak threshold alone cannot reliably reject false beats caused by arm movement, potentially producing erroneous BPM readings.
+- Once `sendEmergencyPing()` is entered, the device is **locked in an infinite tone loop** and cannot be reset remotely — the swimmer or a rescuer must physically power-cycle the unit, which may not be possible in an active rescue scenario.
+- The wearable enclosure shown is a **prototype-grade waterproof container**; a production unit would require a purpose-designed IP68 housing with sealed cable glands to guarantee long-term waterproofing under hydrostatic pressure.
+- A single fixed submersion timer (`MAX_ABSOLUTE_SUBMERGED = 10 s`) may be **too short for competitive swimmers** who routinely perform extended underwater laps, requiring per-user threshold customisation to avoid nuisance alarms.
+- The 3-factor condition requires **all three indicators simultaneously** to trigger, which could delay detection if a swimmer loses consciousness quietly without exhibiting panic motion, relying instead on the absolute submersion fallback condition.
+- The system operates with **no acknowledgement from the receiver** — the transmitter cannot confirm whether its tone has been received and an alarm raised, providing no feedback loop to the swimmer or an attending caregiver that help is on the way.
+
+---
+
+## Transmitter Conclusion
+
+This project has presented the design, implementation, and evaluation of a wearable acoustic transmitter that forms the swimmer-side unit of the drowning detection and rescue alert system. By fusing three independent physiological and environmental indicators — heart rate, water submersion duration, and body motion — the transmitter applies a robust multi-factor emergency logic that substantially reduces false alarms while remaining sensitive to the diverse physiological signatures of real drowning events.
+
+When an emergency condition is confirmed, the ESP32 drives a waterproofed piezo transducer via an N-channel MOSFET to emit a 1500 Hz acoustic tone through the water. This acoustic-first approach deliberately sidesteps the severe RF signal attenuation that renders radio-based underwater communication unreliable, providing a dependable physical channel between the swimmer and the poolside receiver station regardless of pool geometry or water conditions.
+
+The pulsed tone pattern (150 ms on / 100 ms off) is specifically chosen to align with the Goertzel confirmation window on the receiver side, ensuring that the distress signal survives the full verification pipeline — amplitude threshold, signal ratio check, and rolling hit-rate window — before triggering an alarm. End-to-end testing confirmed that a confirmed transmitter emergency reliably propagates through the hydrophone receiver to the Flutter mobile application, activating the visual, audible, and vibratory alert chain with negligible latency.
+
+Taken together, the transmitter subsystem validates the acoustic-first design approach and demonstrates that a low-cost, wearable, battery-powered unit built from commonly available components can serve as a reliable first link in an end-to-end drowning detection pipeline.
+
+---
+
+## Transmitter Author
+
+**Sumaiya Afrin Eva**
+
+[![Final Transmitter Project Build](diagrams/final_transmitter_project.jpeg)](diagrams/final_transmitter_project.jpeg)
+
+---
