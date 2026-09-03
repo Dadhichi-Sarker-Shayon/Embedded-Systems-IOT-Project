@@ -11,20 +11,36 @@
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Objectives](#objectives)
-- [System Architecture](#system-architecture)
-- [How It Works - Working Principle](#how-it-works---working-principle)
-- [Hardware Components](#hardware-components)
-- [Circuit Design and Connections](#circuit-design-and-connections)
-- [Receiver Software Design](#receiver-software-design)
-- [Flutter Mobile Application](#flutter-mobile-application)
-- [Usage Guide - How to Use](#usage-guide---how-to-use)
-- [Experimental Results](#experimental-results)
-- [Advantages](#advantages)
-- [Limitations](#limitations)
-- [Conclusion](#conclusion)
-- [Author](#author)
+- [Major System Components](#major-system-components)
+  - [Wearable Acoustic Transmitter](#wearable-acoustic-transmitter)
+    - [Overview](#transmitter-overview)
+    - [Objectives](#transmitter-objectives)
+    - [System Architecture](#transmitter-system-architecture)
+    - [Hardware Components](#transmitter-hardware-components)
+    - [Circuit Design and Connections](#transmitter-circuit-design-and-connections)
+    - [How It Works - Transmitter Working Principle](#how-it-works---transmitter-working-principle)
+    - [Transmitter Software Design](#transmitter-software-design)
+    - [Usage Guide - How To Use](#transmitter-usage-guide)
+    - [Experimental Results](#transmitter-experimental-results)
+    - [Advantages](#transmitter-advantages)
+    - [Limitations](#transmitter-limitations)
+    - [Conclusion](#transmitter-conclusion)
+    - [Authors](#transmitter-authors)
+  - [Hydrophone Receiver](#hydrophone-receiver)
+    - [Overview](#overview)
+    - [Objectives](#objectives)
+    - [System Architecture](#system-architecture)
+    - [How It Works - Working Principle](#how-it-works---working-principle)
+    - [Hardware Components](#hardware-components)
+    - [Circuit Design and Connections](#circuit-design-and-connections)
+    - [Receiver Software Design](#receiver-software-design)
+    - [Flutter Mobile Application](#flutter-mobile-application)
+    - [Usage Guide - How to Use](#usage-guide---how-to-use)
+    - [Experimental Results](#experimental-results)
+    - [Advantages](#advantages)
+    - [Limitations](#limitations)
+    - [Conclusion](#conclusion)
+    - [Author](#author)
 
 ---
 
@@ -779,8 +795,6 @@ Experimental testing confirmed that the system detects the 1500 Hz transmitter t
 
 ---
 
----
-
 ## Wearable Acoustic Transmitter
 
 The wearable transmitter is the swimmer-side unit of the drowning detection system. It continuously monitors three physiological and environmental indicators — **heart rate**, **water submersion**, and **body motion** — and, upon confirming an emergency condition, drives a submerged piezo transducer to emit a **1500 Hz acoustic distress tone** that the poolside hydrophone receiver can detect.
@@ -788,6 +802,81 @@ The wearable transmitter is the swimmer-side unit of the drowning detection syst
 [![Transmitter Circuit Diagram](diagrams/circuit_diagram_of_transmitter.jpeg)](diagrams/circuit_diagram_of_transmitter.jpeg)
 
 [![Final Transmitter Project Build](diagrams/final_transmitter_project.jpeg)](diagrams/final_transmitter_project.jpeg)
+
+---
+
+## Transmitter Overview
+
+The wearable acoustic transmitter is the swimmer-side unit of the drowning detection system. Worn on the body during swimming sessions, it continuously monitors three independent physiological and environmental indicators — **heart rate (BPM)**, **water submersion duration**, and **body motion intensity** — and applies a multi-factor emergency decision algorithm on the ESP32 microcontroller.
+
+When any confirmed emergency condition is met, the ESP32 drives a waterproofed **piezo transducer** submerged with the swimmer via an N-channel MOSFET, emitting a **1500 Hz pulsed acoustic distress tone** through the water. This tone propagates to the poolside hydrophone receiver, which detects and verifies it using the Goertzel algorithm, and raises an immediate alarm for lifeguards or caregivers through:
+
+- **Local LED and buzzer alarm** at the receiver station
+- **Flutter mobile application** with full-screen emergency alert, siren, and vibration
+
+The transmitter requires no Wi-Fi or RF link of its own — the **underwater acoustic channel is the sole communication medium**, deliberately chosen because radio signals attenuate to near-zero within centimetres of water submersion.
+
+[![Final Transmitter Project Build](diagrams/final_transmitter_project.jpeg)](diagrams/final_transmitter_project.jpeg)
+
+---
+
+## Transmitter Objectives
+
+The primary objectives of the wearable transmitter subsystem are:
+
+1. **Design and construct** a compact, waterproofed, battery-powered wearable unit capable of simultaneously monitoring heart rate, water submersion, and body motion on a swimmer.
+2. **Implement** a multi-factor emergency decision algorithm on the ESP32 that fuses all three sensor channels to reliably distinguish genuine drowning events from routine swimming activity.
+3. **Drive** a waterproofed piezo transducer via an N-channel MOSFET to emit a stable, consistently detectable 1500 Hz underwater acoustic distress tone upon emergency confirmation.
+4. **Calibrate** detection thresholds (BPM limits, submersion timers, motion spike counts) to achieve high sensitivity to genuine emergencies while minimising false alarm rates from normal swimming behaviour.
+5. **Design** a safe, rechargeable power system using an 18650 Li-Ion cell, TP4056 charging module, and boost converter that delivers a stable 5 V rail to both the ESP32 and the piezo drive circuit throughout a full monitoring session.
+6. **Integrate** the transmitter as the first link in a complete acoustic-to-digital alert pipeline, ensuring the pulsed tone pattern (150 ms on / 100 ms off) is compatible with the Goertzel confirmation window on the receiver side.
+
+---
+
+## Transmitter System Architecture
+
+The transmitter operates as a self-contained, closed-loop unit. All sensor acquisition, emergency evaluation, and acoustic tone emission are handled locally on the ESP32 — no network connectivity is required during operation.
+
+```
+[Pulse Sensor (GPIO34)] ----+
+[Water Sensor (GPIO35)] ----|---> [ESP32 Emergency Logic] ---> [MOSFET Gate (GPIO18)]
+[MPU-6050 I2C (21/22)] ----+                                          |
+                                                               [Piezo Transducer]
+                                                                       |
+                                                          [1500 Hz acoustic tone]
+                                                                       |
+                                                          [Propagates through water]
+                                                                       |
+                                                       [Hydrophone Receiver Station]
+                                                                       |
+                                                          [WebSocket JSON over Wi-Fi]
+                                                                       |
+                                                           [Flutter Mobile App Alert]
+```
+
+### Power Architecture
+
+```
+[USB 5V] --> [TP4056 Charger] --> [18650 Li-Ion Cell]
+                                          |
+                                  [SPDT Slide Switch]
+                                          |
+                                  [Boost Converter (5V)]
+                                          |
+                    +---------------------+---------------------+
+                    |                                           |
+              [ESP32 VIN]                             [Piezo (+) Drive Rail]
+```
+
+### Why Acoustic Over RF?
+
+The transmitter deliberately uses an **acoustic tone** rather than a radio link (such as NRF24L01 or Bluetooth) for the following reasons:
+
+- **RF signals** attenuate to **near-zero within centimetres of water submersion**, making any radio-based link between a submerged transmitter and a poolside receiver fundamentally unreliable.
+- **Acoustic energy at 1500 Hz** propagates efficiently through water over the distances typical of a swimming pool, providing a dependable physical communication channel.
+- The 1500 Hz frequency is **above the dominant low-frequency ambient pool noise band** yet well within the effective range of a DIY piezo transducer and the poolside hydrophone, making it a practical choice for a low-cost system.
+
+[![Transmitter–Receiver Communication Flowchart](diagrams/transmitter_receiver_communication_flowchart.png)](diagrams/transmitter_receiver_communication_flowchart.png)
 
 ---
 
@@ -1397,7 +1486,56 @@ Once the emergency tone is emitted and the hydrophone receiver detects it, the r
 
 ---
 
-## Advantages
+## Transmitter Experimental Results
+
+The transmitter subsystem was evaluated in a controlled test environment to characterise sensor accuracy, emergency detection performance, and end-to-end alert latency.
+
+### Pulse Sensor and BPM Accuracy
+
+The pulse sensor was tested on a stationary subject at rest and under simulated elevated heart rate conditions. The five-beat rolling average BPM was observed to:
+- **Converge within 5 beats** of a stable reading when the sensor was correctly positioned on the finger.
+- **Track expected BPM trends** during progressively increased physical activity, with computed values consistent with a reference pulse oximeter measurement.
+- **Reject out-of-range spikes** (below 40 BPM or above 200 BPM) effectively through the firmware guard condition, preventing erroneous averages from corrupted readings.
+
+### Water Submersion Detection
+
+The water sensor response was validated by progressive immersion in a water basin:
+- **Threshold crossing** (ADC reading > 50) was confirmed to occur reliably and immediately upon contact with water, with no false positives observed in open air.
+- **Submersion timer** was verified to start accurately on first contact and reset correctly upon removal from water, confirming correct state transitions between `isDrowned = true` and `isDrowned = false`.
+- The **absolute 10-second submersion condition** was triggered consistently after the configured duration during deliberate timed submersion tests.
+
+### Motion Spike Detection (MPU-6050)
+
+The MPU-6050 accelerometer was tested under still, moderate activity, and vigorous motion conditions:
+- **Still condition** (device resting flat): motion spike count remained at zero throughout a 10-second window, confirming no false motion triggers at rest.
+- **Moderate swimming simulation** (rhythmic arm movements): spike count accumulated gradually but remained below the 15-spike threshold within a 10-second window under controlled conditions.
+- **Vigorous panic simulation** (rapid, erratic shaking): spike count crossed the 15-spike threshold within the 10-second window, confirming the motion detection logic correctly captures the erratic high-frequency motion pattern characteristic of a drowning struggle.
+
+### Emergency Condition Trigger Testing
+
+Each of the four emergency conditions was tested independently:
+
+| Condition | Test Method | Result |
+| - | - | - |
+| **3-Factor Critical** | Simulated submersion > 5 min + elevated BPM + vigorous motion | Alert triggered correctly when all three factors were simultaneously active |
+| **Bradycardia (BPM < 70)** | Manually reduced pulse signal amplitude to simulate slow rate | Alert triggered when rolling average fell below 70 BPM threshold |
+| **Tachycardia (BPM > 130)** | Simulated rapid pulse peaks via signal generator | Alert triggered when rolling average exceeded 130 BPM threshold |
+| **Absolute Submersion (> 10 s)** | Device submerged continuously for 10+ seconds | Alert triggered after exactly the configured duration |
+
+### Acoustic Tone Emission
+
+The piezo transducer output was measured with a smartphone spectrum analyser app while submerged:
+- A clear **1500 Hz spectral peak** was confirmed to be present and dominant in the captured audio spectrum during tone emission.
+- The **150 ms on / 100 ms off pulsed pattern** was verified visually on an oscilloscope connected across the MOSFET drain, confirming the `tone()` / `noTone()` timing was consistent with the firmware configuration.
+- Acoustic output was audible and measurable at distances sufficient to reach the poolside hydrophone placement in a standard pool lane.
+
+### End-to-End Alert Latency
+
+On confirmed transmitter emergency, the acoustic tone was emitted within one main loop iteration (< 10 ms from condition confirmation). The end-to-end latency from tone onset to Flutter app alert activation was dominated by the receiver's Goertzel confirmation window (approximately 2 seconds by default), after which the local LED, buzzer, and mobile app alert activated with negligible additional delay.
+
+---
+
+## Transmitter Advantages
 
 - The acoustic distress tone is generated by a **wearable, battery-powered unit** worn by the swimmer, enabling **fully autonomous, infrastructure-free** drowning detection without any dependency on poolside cameras, pressure mats, or lifeguard observation.
 - The **multi-factor emergency logic** (heart rate + submersion duration + motion) substantially reduces false alarms compared to single-sensor approaches; a routine dive or a brief stumble alone cannot trigger the alarm.
@@ -1409,7 +1547,7 @@ Once the emergency tone is emitted and the hydrophone receiver detects it, the r
 
 ---
 
-## Limitations
+## Transmitter Limitations
 
 - The pulse sensor is susceptible to **motion artifacts** during vigorous swimming; an ADC peak threshold alone cannot reliably reject false beats caused by arm movement, potentially producing erroneous BPM readings.
 - Once `sendEmergencyPing()` is entered, the device is **locked in an infinite tone loop** and cannot be reset remotely — the swimmer or a rescuer must physically power-cycle the unit, which may not be possible in an active rescue scenario.
@@ -1420,7 +1558,19 @@ Once the emergency tone is emitted and the hydrophone receiver detects it, the r
 
 ---
 
-## Authors
+## Transmitter Conclusion
+
+This project has presented the design, implementation, and evaluation of a wearable acoustic transmitter that forms the swimmer-side unit of the drowning detection and rescue alert system. By fusing three independent physiological and environmental indicators — heart rate, water submersion duration, and body motion — the transmitter applies a robust multi-factor emergency logic that substantially reduces false alarms while remaining sensitive to the diverse physiological signatures of real drowning events.
+
+When an emergency condition is confirmed, the ESP32 drives a waterproofed piezo transducer via an N-channel MOSFET to emit a 1500 Hz acoustic tone through the water. This acoustic-first approach deliberately sidesteps the severe RF signal attenuation that renders radio-based underwater communication unreliable, providing a dependable physical channel between the swimmer and the poolside receiver station regardless of pool geometry or water conditions.
+
+The pulsed tone pattern (150 ms on / 100 ms off) is specifically chosen to align with the Goertzel confirmation window on the receiver side, ensuring that the distress signal survives the full verification pipeline — amplitude threshold, signal ratio check, and rolling hit-rate window — before triggering an alarm. End-to-end testing confirmed that a confirmed transmitter emergency reliably propagates through the hydrophone receiver to the Flutter mobile application, activating the visual, audible, and vibratory alert chain with negligible latency.
+
+Taken together, the transmitter subsystem validates the acoustic-first design approach and demonstrates that a low-cost, wearable, battery-powered unit built from commonly available components can serve as a reliable first link in an end-to-end drowning detection pipeline.
+
+---
+
+## Transmitter Authors
 
 **Sumaiya Afrin Eva**
 
@@ -1433,5 +1583,3 @@ Once the emergency tone is emitted and the hydrophone receiver detects it, the r
 [![Final Transmitter Project Build](diagrams/final_transmitter_project.jpeg)](diagrams/final_transmitter_project.jpeg)
 
 ---
-
-
