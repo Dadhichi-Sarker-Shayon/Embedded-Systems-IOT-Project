@@ -1570,7 +1570,7 @@ Taken together, the transmitter subsystem validates the acoustic-first design ap
 
 ---
 
-## Transmitter Authors
+## Transmitter Author
 
 **Sumaiya Afrin Eva**
 
